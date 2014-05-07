@@ -1,0 +1,5 @@
+/.*
+!/.gitignore
+/bower_components/
+/node_modules/
+/output/
