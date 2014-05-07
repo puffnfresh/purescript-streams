@@ -1,6 +1,6 @@
 {
   "name": "purescript-streams",
-  "homepage": "https://github.com/purescript/purescript-streams",
+  "homepage": "https://github.com/purescript-contrib/purescript-streams",
   "description": "Compositional, streaming I/O library",
   "keywords": [
     "purescript"
