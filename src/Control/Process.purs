@@ -58,6 +58,12 @@ module Control.Process where
   flatten (Emit h t) = Await (\f -> f h (\a -> Emit a (flatten t)) Halt)
   flatten (Await f) = Await (\g -> f (\req recv fb -> g req (\a -> flatten (recv a)) (flatten fb)))
 
+  repeatedly :: forall f a. Process f a -> Process f a
+  repeatedly p = go p
+    where go Halt = go p
+          go (Emit h t) = Emit h (go t)
+          go (Await f) = Await (\g -> f (\req recv fb -> g req (\r -> go (recv r)) fb))
+
   evalMap :: forall f a b. (a -> f b) -> Process f a -> Process f b
   evalMap f p = flatten (f <$> p)
 

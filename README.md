@@ -52,6 +52,8 @@
 
     flatten :: forall f a. Process f (f a) -> Process f a
 
+    repeatedly :: forall f a. Process f a -> Process f a
+
     run :: forall f a. (Monad f) => Process f a -> f {  }
 
     runFoldMap :: forall f a b. (Monad f, Monoid b) => (a -> b) -> Process f a -> f b
