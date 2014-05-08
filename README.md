@@ -6,6 +6,9 @@
 
     type Channel e a b = Source e (a -> Eff e b)
 
+    data MUnit  where
+      MUnit :: {  } -> MUnit 
+
     data Process f a where
       Halt :: Process f a
       Emit :: a -> Process f a -> Process f a
@@ -15,11 +18,12 @@
 
     type Source e a = Process (Eff e) a
 
-    data Unit  where
-      Unit :: {  } -> Unit 
-
 
 ### Type Class Instances
+
+    instance munitMonoid :: Monoid MUnit
+
+    instance munitSemigroup :: Semigroup MUnit
 
     instance processApplicative :: Applicative (Process f)
 
@@ -34,10 +38,6 @@
     instance processMonoid :: Monoid (Process k a)
 
     instance processSemigroup :: Semigroup (Process k a)
-
-    instance unitMonoid :: Monoid Unit
-
-    instance unitSemigroup :: Semigroup Unit
 
 
 ### Values

@@ -71,13 +71,13 @@ module Control.Process where
   runLog = runFoldMap (\x -> [x])
 
   -- Isomorphic to {}
-  data Unit = Unit {}
+  data MUnit = MUnit {}
 
-  instance unitSemigroup :: Semigroup Unit where
-    (<>) (Unit {}) (Unit {}) = Unit {}
+  instance munitSemigroup :: Semigroup MUnit where
+    (<>) (MUnit {}) (MUnit {}) = MUnit {}
 
-  instance unitMonoid :: Monoid Unit where
-    mempty = Unit {}
+  instance munitMonoid :: Monoid MUnit where
+    mempty = MUnit {}
 
   run :: forall f a. (Monad f) => Process f a -> f {}
-  run p = const {} <$> runFoldMap (const (Unit {})) p
+  run p = const {} <$> runFoldMap (const (MUnit {})) p
