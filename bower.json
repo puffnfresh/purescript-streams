@@ -18,6 +18,8 @@
     "package.json"
   ],
   "dependencies": {
-    "purescript-monoid": "*"
+    "purescript-monoid": "*",
+    "purescript-tuples": "*",
+    "purescript-trampoline": "*"
   }
 }

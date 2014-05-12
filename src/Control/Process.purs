@@ -33,7 +33,7 @@ module Control.Process where
     (>>=) (Emit h t) f = f h <> (t >>= f)
     (>>=) (Await g) f = Await (\h -> g (\req recv fb -> h req (\res -> recv res >>= f) (fb >>= f)))
 
-  instance processMonad :: Monad (Process f) where
+  instance processMonad :: Monad (Process f)
 
   type Source e a = Process (Eff e) a
   type Sink e a = Source e (a -> Eff e {})
