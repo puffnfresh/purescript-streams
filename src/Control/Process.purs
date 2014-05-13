@@ -36,7 +36,7 @@ module Control.Process where
   instance processMonad :: Monad (Process f)
 
   type Source e a = Process (Eff e) a
-  type Sink e a = Source e (a -> Eff e {})
+  type Sink e a = Source e (a -> Eff e Unit)
   type Channel e a b = Source e (a -> Eff e b)
 
   await :: forall f r a. f r -> (r -> Process f a) -> Process f a
@@ -76,14 +76,5 @@ module Control.Process where
   runLog :: forall f a. (Monad f) => Process f a -> f [a]
   runLog = runFoldMap (\x -> [x])
 
-  -- Isomorphic to {}
-  data MUnit = MUnit {}
-
-  instance munitSemigroup :: Semigroup MUnit where
-    (<>) (MUnit {}) (MUnit {}) = MUnit {}
-
-  instance munitMonoid :: Monoid MUnit where
-    mempty = MUnit {}
-
-  run :: forall f a. (Monad f) => Process f a -> f {}
-  run p = const {} <$> runFoldMap (const (MUnit {})) p
+  run :: forall f a. (Monad f) => Process f a -> f Unit
+  run p = const unit <$> runFoldMap (const unit) p
