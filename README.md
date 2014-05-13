@@ -44,24 +44,17 @@
 
     type Channel e a b = Source e (a -> Eff e b)
 
-    data MUnit  where
-      MUnit :: {  } -> MUnit 
-
     data Process f a where
       Halt :: Process f a
       Emit :: a -> Process f a -> Process f a
       Await :: forall s. (forall r. f r -> (r -> Process f a) -> Process f a -> s) -> s -> Process f a
 
-    type Sink e a = Source e (a -> Eff e {  })
+    type Sink e a = Source e (a -> Eff e Unit)
 
     type Source e a = Process (Eff e) a
 
 
 ### Type Class Instances
-
-    instance munitMonoid :: Monoid MUnit
-
-    instance munitSemigroup :: Semigroup MUnit
 
     instance processApplicative :: Applicative (Process f)
 
@@ -92,7 +85,7 @@
 
     repeatedly :: forall f a. Process f a -> Process f a
 
-    run :: forall f a. (Monad f) => Process f a -> f {  }
+    run :: forall f a. (Monad f) => Process f a -> f Unit
 
     runFoldMap :: forall f a b. (Monad f, Monoid b) => (a -> b) -> Process f a -> f b
 
