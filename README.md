@@ -1,43 +1,5 @@
 # Module Documentation
 
-## Module Control.Monad.Task
-
-### Types
-
-    type PureTask a = forall e. Task e a
-
-    data RealWorld  where
-      RealWorld :: RealWorld 
-
-    data Task :: # ! -> * -> *
-
-
-### Type Class Instances
-
-    instance taskApplicative :: Applicative (Task e)
-
-    instance taskApply :: Apply (Task e)
-
-    instance taskBind :: Bind (Task e)
-
-    instance taskFunctor :: Functor (Task e)
-
-    instance taskMonad :: Monad (Task e)
-
-
-### Values
-
-    bindT :: forall e a b. Task e a -> (a -> Task e b) -> Task e b
-
-    runTask :: forall e a. Task e a -> Eff e {  }
-
-    task :: forall e a. (RealWorld -> Trampoline (Tuple RealWorld a)) -> Task e a
-
-    traceTask :: forall r. Prim.String -> Task (trace :: Trace | r) {  }
-
-    unsafePerformTask :: forall e a. Task e a -> a
-
-
 ## Module Control.Process
 
 ### Types

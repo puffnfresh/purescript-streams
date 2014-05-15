@@ -20,6 +20,7 @@
   "dependencies": {
     "purescript-monoid": ">=0.1.1",
     "purescript-tuples": "*",
-    "purescript-trampoline": "*"
+    "purescript-trampoline": "*",
+    "purescript-task": "*"
   }
 }
