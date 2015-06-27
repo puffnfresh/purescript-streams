@@ -2,11 +2,14 @@ module Control.Process where
 
 import Prelude
 
+import Data.Either
 import Data.Monoid
 import Data.Exists
+
 import qualified Data.List as L
 
 import Control.Monad.Eff
+import Control.Monad.Rec.Class
 
 data AwaitF f a r = AwaitF (f r) (r -> Process f a) (Process f a)
 
@@ -44,7 +47,9 @@ instance processBind :: Bind (Process f) where
 instance processMonad :: Monad (Process f)
 
 type Source e a = Process (Eff e) a
+
 type Sink e a = Source e (a -> Eff e Unit)
+
 type Channel e a b = Source e (a -> Eff e b)
 
 await :: forall f r a. f r -> (r -> Process f a) -> Process f a
@@ -75,14 +80,14 @@ repeatedly p = go p
 evalMap :: forall f a b. (a -> f b) -> Process f a -> Process f b
 evalMap f p = flatten (f <$> p)
 
-runFoldMap :: forall f a b. (Monad f, Monoid b) => (a -> b) -> Process f a -> f b
-runFoldMap f p = go p mempty
-  where go Halt acc = pure acc
-        go (Emit h t) acc = go t (acc <> f h)
-        go (Await f) acc = runExists (\(AwaitF req recv fb) -> req >>= \s -> go (recv s) acc) f
+runFoldMap :: forall f a b. (MonadRec f, Monoid b) => (a -> b) -> Process f a -> f b
+runFoldMap f p = tailRecM go { process: p, acc: mempty }
+  where go { process: Halt,     acc: acc } = pure (Right acc)
+        go { process: Emit h t, acc: acc } = pure (Left { process: t, acc: acc <> f h })
+        go { process: Await f,  acc: acc } = runExists (\(AwaitF req recv fb) -> req >>= \s -> pure (Left { process: recv s, acc: acc })) f
 
-runLog :: forall f a. (Monad f) => Process f a -> f (L.List a)
+runLog :: forall f a. (MonadRec f) => Process f a -> f (L.List a)
 runLog = runFoldMap L.singleton
 
-run :: forall f a. (Monad f) => Process f a -> f Unit
+run :: forall f a. (MonadRec f) => Process f a -> f Unit
 run p = const unit <$> runFoldMap (const unit) p
