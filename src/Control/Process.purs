@@ -1,80 +1,93 @@
 module Control.Process where
 
-  import Control.Monad.Eff
-  import Data.Monoid
+import Prelude
 
-  data Process f a = Halt
-                   | Emit a (Process f a)
-                   | Await (forall s. (forall r. f r -> (r -> Process f a) -> Process f a -> s) -> s)
+import Data.Either
+import Data.Monoid
+import Data.Exists
 
-  instance processSemigroup :: Semigroup (Process k a) where
-    (<>) Halt p = p
-    (<>) (Emit h t) p2 = Emit h (t <> p2)
-    (<>) (Await f) p2 = Await (\g -> f (\req recv fb -> g req (\res -> recv res <> p2) (fb <> p2)))
+import qualified Data.List as L
 
-  instance processMonoid :: Monoid (Process k a) where
-    mempty = Halt
+import Control.Monad.Eff
+import Control.Monad.Rec.Class
 
-  instance processFunctor :: Functor (Process f) where
-    (<$>) f Halt = Halt
-    (<$>) f (Emit h t) = Emit (f h) (f <$> t)
-    (<$>) f (Await g) = Await (\h -> g (\req recv fb -> h req (\res -> f <$> recv res) (f <$> fb)))
+data AwaitF f a r = AwaitF (f r) (r -> Process f a) (Process f a)
 
-  instance processApply :: Apply (Process f) where
-    (<*>) Halt b = Halt
-    (<*>) (Emit h t) b = (h <$> b) <> (t <*> b)
-    (<*>) (Await g) b = Await (\h -> g (\req recv fb -> h req (\res -> recv res <*> b) (fb <*> b)))
+data Process f a 
+  = Halt
+  | Emit a (Process f a)
+  | Await (Exists (AwaitF f a))
 
-  instance processApplicative :: Applicative (Process f) where
-    pure a = Emit a Halt
+instance processSemigroup :: Semigroup (Process k a) where
+  append Halt p = p
+  append (Emit h t) p2 = Emit h (t <> p2)
+  append (Await f) p2 = Await (runExists (\(AwaitF req recv fb) -> mkExists (AwaitF req ((`append` p2) <<< recv) (append fb p2))) f)
 
-  instance processBind :: Bind (Process f) where
-    (>>=) Halt f = Halt
-    (>>=) (Emit h t) f = f h <> (t >>= f)
-    (>>=) (Await g) f = Await (\h -> g (\req recv fb -> h req (\res -> recv res >>= f) (fb >>= f)))
+instance processMonoid :: Monoid (Process k a) where
+  mempty = Halt
 
-  instance processMonad :: Monad (Process f)
+instance processFunctor :: Functor (Process f) where
+  map f Halt = Halt
+  map f (Emit h t) = Emit (f h) (map f t)
+  map f (Await g) = Await (runExists (\(AwaitF req recv fb) -> mkExists (AwaitF req (map f <<< recv) (map f fb))) g)
 
-  type Source e a = Process (Eff e) a
-  type Sink e a = Source e (a -> Eff e Unit)
-  type Channel e a b = Source e (a -> Eff e b)
+instance processApply :: Apply (Process f) where
+  apply Halt b = Halt
+  apply (Emit h t) b = (h <$> b) <> (t <*> b)
+  apply (Await f) b = Await (runExists (\(AwaitF req recv fb) -> mkExists (AwaitF req ((`apply` b) <<< recv) (apply fb b))) f)
 
-  await :: forall f r a. f r -> (r -> Process f a) -> Process f a
-  await req recv = Await (\f -> f req recv Halt)
+instance processApplicative :: Applicative (Process f) where
+  pure a = Emit a Halt
 
-  emit :: forall f a. a -> Process f a
-  emit h = Emit h Halt
+instance processBind :: Bind (Process f) where
+  bind Halt f = Halt
+  bind (Emit h t) f = f h <> (bind t f)
+  bind (Await g) f = Await (runExists (\(AwaitF req recv fb) -> mkExists (AwaitF req (\res -> bind (recv res) f) (bind fb f))) g)
 
-  eval :: forall f a. f a -> Process f a
-  eval h = await h emit
+instance processMonad :: Monad (Process f)
 
-  translate :: forall f g a. (forall b. f b -> g b) -> Process f a -> Process g a
-  translate _ Halt = Halt
-  translate f (Emit h t) = Emit h (translate f t)
-  translate f (Await g) = Await (\h -> g (\req recv fb -> h (f req) (\b -> translate f (recv b)) (translate f fb)))
+type Source e a = Process (Eff e) a
 
-  flatten :: forall f a. Process f (f a) -> Process f a
-  flatten Halt = Halt
-  flatten (Emit h t) = Await (\f -> f h (\a -> Emit a (flatten t)) Halt)
-  flatten (Await f) = Await (\g -> f (\req recv fb -> g req (\a -> flatten (recv a)) (flatten fb)))
+type Sink e a = Source e (a -> Eff e Unit)
 
-  repeatedly :: forall f a. Process f a -> Process f a
-  repeatedly p = go p
-    where go Halt = go p
-          go (Emit h t) = Emit h (go t)
-          go (Await f) = Await (\g -> f (\req recv fb -> g req (\r -> go (recv r)) fb))
+type Channel e a b = Source e (a -> Eff e b)
 
-  evalMap :: forall f a b. (a -> f b) -> Process f a -> Process f b
-  evalMap f p = flatten (f <$> p)
+await :: forall f r a. f r -> (r -> Process f a) -> Process f a
+await req recv = Await (mkExists (AwaitF req recv Halt))
 
-  runFoldMap :: forall f a b. (Monad f, Monoid b) => (a -> b) -> Process f a -> f b
-  runFoldMap f p = go p mempty
-    where go Halt acc = pure acc
-          go (Emit h t) acc = go t (acc <> f h)
-          go (Await f) acc = f (\req recv fb -> req >>= \s -> go (recv s) acc)
+emit :: forall f a. a -> Process f a
+emit h = Emit h Halt
 
-  runLog :: forall f a. (Monad f) => Process f a -> f [a]
-  runLog = runFoldMap (\x -> [x])
+eval :: forall f a. f a -> Process f a
+eval h = await h emit
 
-  run :: forall f a. (Monad f) => Process f a -> f Unit
-  run p = const unit <$> runFoldMap (const unit) p
+translate :: forall f g a. (forall b. f b -> g b) -> Process f a -> Process g a
+translate _ Halt = Halt
+translate f (Emit h t) = Emit h (translate f t)
+translate f (Await g) = Await (runExists (\(AwaitF req recv fb) -> mkExists (AwaitF (f req) (translate f <<< recv) (translate f fb))) g) 
+
+flatten :: forall f a. Process f (f a) -> Process f a
+flatten Halt = Halt
+flatten (Emit h t) = await h (\a -> Emit a (flatten t))
+flatten (Await f) = Await (runExists (\(AwaitF req recv fb) -> mkExists (AwaitF req (flatten <<< recv) (flatten fb))) f)
+
+repeatedly :: forall f a. Process f a -> Process f a
+repeatedly p = go p
+  where go Halt = go p
+        go (Emit h t) = Emit h (go t)
+        go (Await f) = Await (runExists (\(AwaitF req recv fb) -> mkExists (AwaitF req (go <<< recv) fb)) f)
+
+evalMap :: forall f a b. (a -> f b) -> Process f a -> Process f b
+evalMap f p = flatten (f <$> p)
+
+runFoldMap :: forall f a b. (MonadRec f, Monoid b) => (a -> b) -> Process f a -> f b
+runFoldMap f p = tailRecM go { process: p, acc: mempty }
+  where go { process: Halt,     acc: acc } = pure (Right acc)
+        go { process: Emit h t, acc: acc } = pure (Left { process: t, acc: acc <> f h })
+        go { process: Await f,  acc: acc } = runExists (\(AwaitF req recv fb) -> req >>= \s -> pure (Left { process: recv s, acc: acc })) f
+
+runLog :: forall f a. (MonadRec f) => Process f a -> f (L.List a)
+runLog = runFoldMap L.singleton
+
+run :: forall f a. (MonadRec f) => Process f a -> f Unit
+run p = const unit <$> runFoldMap (const unit) p
